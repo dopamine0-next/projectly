@@ -1,0 +1,738 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ======================================================
+// PROFILE
+// ======================================================
+//
+// ID berasal dari Supabase Auth: auth.users.id
+// Password/email authentication dikelola Supabase Auth.
+// ======================================================
+
+model Profile {
+  id String @id @db.Uuid
+
+  fullName  String
+  username  String? @unique
+  avatarUrl String?
+
+  university   String?
+  studyProgram String?
+  semester     Int?
+
+  headline String?
+  bio      String?
+
+  location String?
+  website  String?
+  github   String?
+  linkedin String?
+
+  status UserStatus @default(ACTIVE)
+
+  onboardingCompleted Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // RBAC
+  userRoles UserRole[]
+
+  // Onboarding
+  onboarding UserOnboarding?
+
+  // Skills
+  skills UserSkill[]
+
+  // Interests
+  interests UserInterest[]
+
+  // Projects
+  createdProjects Project[]            @relation("ProjectCreator")
+  projectMembers  ProjectMember[]
+  applications    ProjectApplication[]
+
+  // Collaboration
+  createdCollaborations Collaboration[]       @relation("CollaborationCreator")
+  collaborationMembers  CollaborationMember[]
+
+  // Events
+  organizedEvents   Event[]            @relation("EventOrganizer")
+  eventParticipants EventParticipant[]
+  feedbacks         EventFeedback[]
+
+  // Activity
+  activities ActivityLog[]
+
+  // Notifications
+  notifications Notification[]
+
+  // AI Recommendation
+  recommendationsGiven    AIRecommendation[] @relation("RecommendationFrom")
+  recommendationsReceived AIRecommendation[] @relation("RecommendationTo")
+
+  // Settings
+  settings UserSetting[]
+}
+
+// ======================================================
+// RBAC
+// ======================================================
+
+model Role {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+
+  users       UserRole[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+}
+
+model UserRole {
+  id String @id @default(cuid())
+
+  userId String @db.Uuid
+  roleId String
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role    @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+}
+
+model Permission {
+  id String @id @default(cuid())
+
+  name        String  @unique
+  description String?
+
+  roles RolePermission[]
+}
+
+model RolePermission {
+  id String @id @default(cuid())
+
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+}
+
+// ======================================================
+// ONBOARDING
+// ======================================================
+
+model UserOnboarding {
+  id String @id @default(cuid())
+
+  userId String @unique @db.Uuid
+
+  fieldId        String?
+  goalId         String?
+  availabilityId String?
+
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  field        Field?        @relation(fields: [fieldId], references: [id], onDelete: SetNull)
+  goal         Goal?         @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  availability Availability? @relation(fields: [availabilityId], references: [id], onDelete: SetNull)
+}
+
+model Field {
+  id String @id @default(cuid())
+
+  name        String  @unique
+  description String?
+  icon        String?
+
+  onboardings UserOnboarding[]
+  projects    Project[]
+
+  createdAt DateTime @default(now())
+}
+
+model Goal {
+  id String @id @default(cuid())
+
+  name        String  @unique
+  description String?
+
+  onboardings UserOnboarding[]
+
+  createdAt DateTime @default(now())
+}
+
+model Availability {
+  id String @id @default(cuid())
+
+  name String @unique
+
+  minHours Int?
+  maxHours Int?
+
+  description String?
+
+  onboardings UserOnboarding[]
+
+  createdAt DateTime @default(now())
+}
+
+// ======================================================
+// SKILL
+// ======================================================
+
+model Skill {
+  id String @id @default(cuid())
+
+  name     String  @unique
+  category String?
+  icon     String?
+
+  users        UserSkill[]
+  projectRoles ProjectRole[]
+
+  createdAt DateTime @default(now())
+}
+
+model UserSkill {
+  id String @id @default(cuid())
+
+  userId  String @db.Uuid
+  skillId String
+
+  level      Int  @default(1)
+  percentage Int?
+
+  isVerified Boolean   @default(false)
+  verifiedAt DateTime?
+
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill Skill   @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skillId])
+  @@index([skillId])
+}
+
+// ======================================================
+// INTEREST
+// ======================================================
+
+model Interest {
+  id String @id @default(cuid())
+
+  name String @unique
+
+  users UserInterest[]
+
+  createdAt DateTime @default(now())
+}
+
+model UserInterest {
+  id String @id @default(cuid())
+
+  userId     String @db.Uuid
+  interestId String
+
+  user     Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  interest Interest @relation(fields: [interestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, interestId])
+}
+
+// ======================================================
+// PROJECT
+// ======================================================
+
+model Project {
+  id String @id @default(cuid())
+
+  name        String
+  description String
+  thumbnail   String?
+
+  category String?
+
+  status ProjectStatus @default(OPEN)
+
+  fieldId String?
+
+  createdById String @db.Uuid
+
+  startDate  DateTime?
+  targetDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  field Field? @relation(fields: [fieldId], references: [id], onDelete: SetNull)
+
+  createdBy Profile @relation("ProjectCreator", fields: [createdById], references: [id])
+
+  members      ProjectMember[]
+  roles        ProjectRole[]
+  applications ProjectApplication[]
+
+  activities ActivityLog[]
+
+  @@index([createdById])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ======================================================
+// PROJECT MEMBER
+// ======================================================
+
+model ProjectMember {
+  id String @id @default(cuid())
+
+  projectId String
+  userId    String @db.Uuid
+
+  roleName String?
+
+  status ProjectMemberStatus @default(ACTIVE)
+
+  joinedAt DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId])
+}
+
+// ======================================================
+// PROJECT ROLE
+// ======================================================
+
+model ProjectRole {
+  id String @id @default(cuid())
+
+  projectId String
+  skillId   String?
+
+  name        String
+  description String?
+
+  required Int @default(1)
+  filled   Int @default(0)
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  skill   Skill?  @relation(fields: [skillId], references: [id], onDelete: SetNull)
+
+  applications ProjectApplication[]
+
+  @@index([projectId])
+}
+
+// ======================================================
+// PROJECT APPLICATION
+// ======================================================
+
+model ProjectApplication {
+  id String @id @default(cuid())
+
+  projectId String
+  userId    String  @db.Uuid
+  roleId    String?
+
+  message String?
+
+  status ApplicationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    Profile      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role    ProjectRole? @relation(fields: [roleId], references: [id], onDelete: SetNull)
+
+  @@index([projectId])
+  @@index([userId])
+}
+
+// ======================================================
+// COLLABORATION
+// ======================================================
+
+model Collaboration {
+  id String @id @default(cuid())
+
+  name        String
+  description String?
+
+  category String?
+
+  status CollaborationStatus @default(RECRUITING)
+
+  creatorId String @db.Uuid
+
+  targetDate DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator Profile @relation("CollaborationCreator", fields: [creatorId], references: [id])
+
+  members CollaborationMember[]
+  roles   CollaborationRole[]
+
+  activities ActivityLog[]
+
+  @@index([creatorId])
+  @@index([status])
+  @@index([category])
+  @@index([createdAt])
+}
+
+// ======================================================
+// COLLABORATION MEMBER
+// ======================================================
+
+model CollaborationMember {
+  id String @id @default(cuid())
+
+  collaborationId String
+  userId          String @db.Uuid
+
+  roleName String?
+
+  joinedAt DateTime @default(now())
+
+  collaboration Collaboration @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+  user          Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([collaborationId, userId])
+  @@index([userId])
+}
+
+// ======================================================
+// COLLABORATION ROLE
+// ======================================================
+
+model CollaborationRole {
+  id String @id @default(cuid())
+
+  collaborationId String
+
+  name        String
+  description String?
+
+  required Int @default(1)
+  filled   Int @default(0)
+
+  collaboration Collaboration @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+
+  @@index([collaborationId])
+}
+
+// ======================================================
+// EVENT
+// ======================================================
+
+model Event {
+  id String @id @default(cuid())
+
+  title       String
+  description String?
+
+  imageUrl String?
+
+  location String?
+
+  eventDate DateTime
+
+  organizerId String @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizer Profile @relation("EventOrganizer", fields: [organizerId], references: [id])
+
+  participants EventParticipant[]
+  feedbacks    EventFeedback[]
+
+  @@index([eventDate])
+}
+
+// ======================================================
+// EVENT PARTICIPANT
+// ======================================================
+
+model EventParticipant {
+  id String @id @default(cuid())
+
+  eventId String
+  userId  String @db.Uuid
+
+  joinedAt DateTime @default(now())
+
+  event Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+}
+
+// ======================================================
+// FEEDBACK
+// ======================================================
+
+model EventFeedback {
+  id String @id @default(cuid())
+
+  eventId String
+  userId  String @db.Uuid
+
+  rating  Int
+  comment String?
+
+  sentiment      SentimentType?
+  sentimentScore Float?
+
+  keywords Json?
+
+  aiAnalysis String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  event Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, userId])
+  @@index([sentiment])
+  @@index([createdAt])
+}
+
+// ======================================================
+// ACTIVITY LOG
+// ======================================================
+//
+// Digunakan oleh:
+// - Dashboard Recent Activity
+// - Admin monitoring
+// - User activity
+// ======================================================
+
+model ActivityLog {
+  id String @id @default(cuid())
+
+  userId String? @db.Uuid
+
+  projectId       String?
+  collaborationId String?
+
+  type ActivityType
+
+  title       String
+  description String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+
+  user          Profile?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project       Project?       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  collaboration Collaboration? @relation(fields: [collaborationId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId])
+  @@index([type])
+}
+
+// ======================================================
+// AI RECOMMENDATION
+// ======================================================
+
+model AIRecommendation {
+  id String @id @default(cuid())
+
+  fromUserId String? @db.Uuid
+  toUserId   String  @db.Uuid
+
+  score Float
+
+  reason String?
+
+  status RecommendationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  fromUser Profile? @relation("RecommendationFrom", fields: [fromUserId], references: [id])
+  toUser   Profile  @relation("RecommendationTo", fields: [toUserId], references: [id])
+
+  @@index([toUserId])
+  @@index([score])
+}
+
+// ======================================================
+// NOTIFICATION
+// ======================================================
+
+model Notification {
+  id String @id @default(cuid())
+
+  userId String @db.Uuid
+
+  title   String
+  message String
+
+  type String?
+
+  isRead Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+}
+
+// ======================================================
+// USER SETTINGS
+// ======================================================
+
+model UserSetting {
+  id String @id @default(cuid())
+
+  userId String @db.Uuid
+
+  key   String
+  value Json
+
+  updatedAt DateTime @updatedAt
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+}
+
+// ======================================================
+// ADMIN / SYSTEM SETTINGS
+// ======================================================
+
+model SystemSetting {
+  id String @id @default(cuid())
+
+  key   String @unique
+  value Json
+
+  description String?
+
+  updatedById String? @db.Uuid
+
+  updatedAt DateTime @updatedAt
+
+  @@index([key])
+}
+
+// ======================================================
+// ENUM
+// ======================================================
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum ProjectStatus {
+  DRAFT
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectMemberStatus {
+  ACTIVE
+  INACTIVE
+  LEFT
+}
+
+enum ApplicationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  CANCELLED
+}
+
+enum CollaborationStatus {
+  OPEN
+  RECRUITING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum SentimentType {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum RecommendationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  IGNORED
+}
+
+enum ActivityType {
+  USER_REGISTERED
+  USER_UPDATED
+  USER_SUSPENDED
+
+  PROJECT_CREATED
+  PROJECT_UPDATED
+  PROJECT_JOINED
+  PROJECT_COMPLETED
+
+  APPLICATION_SENT
+  APPLICATION_ACCEPTED
+  APPLICATION_REJECTED
+
+  COLLABORATION_CREATED
+  COLLABORATION_UPDATED
+  COLLABORATION_JOINED
+  COLLABORATION_COMPLETED
+
+  EVENT_CREATED
+  EVENT_JOINED
+
+  FEEDBACK_CREATED
+  FEEDBACK_ANALYZED
+
+  SKILL_ADDED
+  SKILL_VERIFIED
+
+  ROLE_CHANGED
+
+  SYSTEM_SETTING_UPDATED
+}
