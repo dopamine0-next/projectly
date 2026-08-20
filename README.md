@@ -17,6 +17,12 @@ Buka `http://localhost:3000` → otomatis redirect ke `/login`.
 |------------|-------------|-------|
 | 2310001    | user123     | user  |
 | admin001   | admin123    | admin |
+| 23101140   | uamay10     | admin |
+| 23101141   | marwah1     | admin |
+| 23101142   | aisyah      | admin |
+| 23101143   | ilyas1      | user  |
+| 23101144   | harahap     | user  |
+| 23101145   | joseph      | user  |
 
 Login sukses → redirect ke `/dashboard` (placeholder).
 Login gagal (NIM/password salah) → pesan error muncul di bawah form.
